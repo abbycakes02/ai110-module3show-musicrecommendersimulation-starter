@@ -47,7 +47,9 @@ We can blend collaborative filtering (user similarities) and content-based filte
 5. **Output**: Return top K recommendations (e.g., K=5).
 
 ### Potential Biases
-This system might over-prioritize genre and artist matches due to higher weights, potentially ignoring great songs that strongly match the user's mood or energy but differ in genre. 
+This system might over-prioritize genre and artist matches due to higher weights, potentially ignoring great songs that strongly match the user's mood or energy but differ in genre.
+
+![Recommendations Screenshot](images/recommendations_screenshot.png) 
 
 ## Getting Started
 

@@ -73,20 +73,114 @@ def load_songs(csv_path: str) -> List[Dict]:
     print(f"Loading songs from {csv_path}...")
     return songs
 
-def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
-    """
-    Scores a single song against user preferences.
-    Required by recommend_songs() and src/main.py
-    """
-    # TODO: Implement scoring logic using your Algorithm Recipe from Phase 2.
-    # Expected return format: (score, reasons)
-    return []
-
 def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
     """
-    Functional implementation of the recommendation logic.
-    Required by src/main.py
+    Simple scoring:
+      - categorical matches (artist, genre, mood) are binary (1.0 / 0.0)
+      - energy closeness is 1 - abs(diff) assuming energy in [0,1]
+      - acousticness honors likes_acoustic: high acousticness preferred if True, low otherwise
+      - danceability & valence used as-is (already in [0,1])
+    Returns top-k as (song_dict, score, explanation).
     """
-    # TODO: Implement scoring and ranking logic
-    # Expected return format: (song_dict, score, explanation)
-    return []
+    # helper to keep numeric features in the [0,1] range
+    def clamp(x, a=0.0, b=1.0):
+        return max(a, min(b, x))
+
+    # weights for each feature. Higher weight => more influence on final score.
+    weights = {
+        "artist": 1.5,
+        "genre": 1.2,
+        "mood": 1.0,
+        "energy": 1.5,
+        "acoustic": 1.0,
+        "danceability": 0.7,
+        "valence": 0.6
+    }
+    total_weight = sum(weights.values())  # used to normalize final score to ~[0,1]
+
+    # Pull user preferences and normalize to lowercase where comparing strings
+    fav_artist = (user_prefs.get("favorite_artist") or "").strip().lower()
+    fav_genre = (user_prefs.get("favorite_genre") or "").strip().lower()
+    fav_mood = (user_prefs.get("favorite_mood") or "").strip().lower()
+    target_energy = user_prefs.get("target_energy", None)  # expected numeric in [0,1] or None
+    likes_acoustic = bool(user_prefs.get("likes_acoustic", False))
+
+    # Define a "judge" function that scores a single song and returns (score, explanation).
+    # This isolates the scoring logic so it can be reused (and tested) independently.
+    def score_song(song: Dict) -> Tuple[float, str]:
+        """
+        Score a single song dict against the user preferences.
+        Returns a tuple of (score, explanation).
+        """
+        # normalize song categorical fields for comparison
+        artist = (song.get("artist") or "").lower()
+        genre = (song.get("genre") or "").lower()
+        mood = (song.get("mood") or "").lower()
+
+        # categorical/binary matches:
+        # - artist: partial match (substring) gives 1.0, else 0.0
+        # - genre and mood: require exact match to count
+        artist_score = 1.0 if fav_artist and fav_artist in artist else 0.0
+        genre_score = 1.0 if fav_genre and fav_genre == genre else 0.0
+        mood_score = 1.0 if fav_mood and fav_mood == mood else 0.0
+
+        # numeric features (assume in [0,1] except tempo)
+        energy = clamp(float(song.get("energy", 0.0)))
+        # if user provided a target energy, score by closeness: 1 - abs(diff)
+        if target_energy is not None:
+            energy_score = clamp(1.0 - abs(energy - float(target_energy)))
+        else:
+            # if no target, use the song's energy directly as its contribution
+            energy_score = energy
+
+        acousticness = clamp(float(song.get("acousticness", 0.0)))
+        # prefer high acousticness if user likes acoustic, otherwise prefer low acousticness
+        acoustic_score = acousticness if likes_acoustic else (1.0 - acousticness)
+
+        danceability_score = clamp(float(song.get("danceability", 0.0)))
+        valence_score = clamp(float(song.get("valence", 0.0)))
+
+        # weighted linear combination of feature scores, then normalize
+        score = (
+            weights["artist"] * artist_score +
+            weights["genre"] * genre_score +
+            weights["mood"] * mood_score +
+            weights["energy"] * energy_score +
+            weights["acoustic"] * acoustic_score +
+            weights["danceability"] * danceability_score +
+            weights["valence"] * valence_score
+        ) / total_weight
+
+        # build short, human-readable explanation for why this song scored as it did
+        reasons = []
+        if artist_score > 0:
+            reasons.append("favorite artist match")
+        if genre_score > 0:
+            reasons.append("genre match")
+        if mood_score > 0:
+            reasons.append("mood match")
+
+        # explain energy contribution: either closeness to target or raw energy value
+        if target_energy is not None:
+            diff = abs(energy - float(target_energy))
+            reasons.append(f"energy close (diff={diff:.2f})")
+        else:
+            reasons.append(f"energy={energy:.2f}")
+
+        # include acousticness/danceability/valence for transparency
+        reasons.append(f"acousticness={acousticness:.2f}")
+        reasons.append(f"danceability={danceability_score:.2f}")
+        reasons.append(f"valence={valence_score:.2f}")
+
+        explanation = ", ".join(reasons)
+        return score, explanation
+
+    # Score every song in the catalog using the judge (score_song), collect and sort.
+    scored = []
+    for s in songs:
+        score, explanation = score_song(s)
+        scored.append((s, score, explanation))
+
+    # sort songs by score descending and return top-k
+    scored.sort(key=lambda t: t[1], reverse=True)
+    return scored[:k]

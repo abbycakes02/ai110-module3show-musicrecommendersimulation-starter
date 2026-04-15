@@ -87,11 +87,12 @@ def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tup
         return max(a, min(b, x))
 
     # weights for each feature. Higher weight => more influence on final score.
+    # EXPERIMENT: Halved genre weight (0.6), doubled energy weight (3.0)
     weights = {
         "artist": 1.5,
-        "genre": 1.2,
+        "genre": 0.6,
         "mood": 1.0,
-        "energy": 1.5,
+        "energy": 3.0,
         "acoustic": 1.0,
         "danceability": 0.7,
         "valence": 0.6

@@ -29,7 +29,25 @@ Some prompts to answer:
 
 You can include a simple diagram or bullet list if helpful.
 
----
+We can blend collaborative filtering (user similarities) and content-based filtering (item attributes) for personalized suggestions to balance relevance and diversity. Our version prioritizes content-based filtering focusing on matching genre, mood, artist, and energy for recommendations without user interaction data.
+
+### Features Used in Simulation
+- **Song Object**: `genre`, `mood`, `artist`, `energy` (core); others like `title` available.
+- **UserProfile Object**: `favorite_genre`, `favorite_mood`, `favorite_artist`, `target_energy`, `likes_acoustic`.
+
+### Algorithm Recipe
+1. **Input**: User profile (favorite_genre, favorite_mood, favorite_artist, target_energy, likes_acoustic) and list of songs from songs.csv.
+2. **Scoring**: For each song, compute similarity score using weighted sum:
+   - genre_match * 0.4 (1 if exact match, 0 otherwise)
+   - mood_match * 0.2 (1 if exact match, 0 otherwise)
+   - artist_match * 0.3 (1 if exact match, 0 otherwise)
+   - energy_match * 0.1 (1 - |target_energy - song_energy| / 1.0, since energy ranges from 0 to 1)
+3. **Filtering**: Exclude songs already in user's known tracks; limit to max 2 per artist for diversity.
+4. **Ranking**: Sort songs by descending score.
+5. **Output**: Return top K recommendations (e.g., K=5).
+
+### Potential Biases
+This system might over-prioritize genre and artist matches due to higher weights, potentially ignoring great songs that strongly match the user's mood or energy but differ in genre. 
 
 ## Getting Started
 
